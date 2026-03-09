@@ -1,2 +1,23 @@
-# ai-powered-waf
-An intelligent, machine learning-enhanced Web Application Firewall that leverages artificial intelligence to provide next-generation cybersecurity protection for web applications. This project combines traditional security rules with adaptive AI-driven threat detection to defend against both known and zero-day attacks in real-time.
+# AI-Powered WAF
+
+This project is designed to provide web application firewall capabilities utilizing AI.
+
+## Installation Instructions
+
+To install the required packages, use the following command:
+
+```bash
+pip install -r requirements.txt
+```
+
+## Usage
+
+Run the main application with:
+
+```bash
+python main.py
+```
+
+## Contributing
+
+Please submit your contributions via pull requests!
