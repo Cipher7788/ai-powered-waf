@@ -1,8 +1,8 @@
 # AI Threat Detector
 
-In this script, we implement AI/ML threat detection using Isolation Forest, feature extraction, entropy calculation, and adaptive rules.
+# In this script, we implement AI/ML threat detection using Isolation Forest,
+# feature extraction, entropy calculation, and adaptive rules.
 
-import pandas as pd
 from sklearn.ensemble import IsolationForest
 import numpy as np
 
@@ -39,7 +39,8 @@ def adaptive_rules(predictions):
     else:
         print("No Threat Detected.")
 
-# Sample data
-sample_data = np.random.rand(100)
-predictions = detect_threats(sample_data)
-adaptive_rules(predictions)
+if __name__ == '__main__':
+    # Sample data
+    sample_data = np.random.rand(100)
+    predictions = detect_threats(sample_data)
+    adaptive_rules(predictions)
