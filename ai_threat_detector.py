@@ -1,46 +1,42 @@
-# AI Threat Detector
+"""Lightweight advisory anomaly features.
 
-# In this script, we implement AI/ML threat detection using Isolation Forest,
-# feature extraction, entropy calculation, and adaptive rules.
+This module intentionally does not train an IsolationForest on each individual request:
+doing so has no meaningful reference distribution and produces misleading predictions.
+The rule-based WAF remains the enforcement authority until a validated model is supplied.
+"""
+import math
+from collections import Counter
+import re
 
-from sklearn.ensemble import IsolationForest
-import numpy as np
-
-# Feature extraction function
 
 def extract_features(data):
-    # Example feature extraction logic
-    features = []
-    for i in range(len(data)-1):
-        features.append([data[i], data[i+1]])
-    return np.array(features)
+    text = data if isinstance(data, str) else repr(data)
+    text = text[:10000]
+    if not text:
+        return {"length": 0, "entropy": 0.0, "control_ratio": 0.0, "encoding_ratio": 0.0}
+    counts = Counter(text)
+    entropy = -sum((count / len(text)) * math.log2(count / len(text)) for count in counts.values())
+    controls = sum(ord(char) < 32 and char not in "\t\r\n" for char in text)
+    encoded = len(re.findall(r"%(?:[0-9a-fA-F]{2})", text))
+    return {
+        "length": len(text),
+        "entropy": round(entropy, 4),
+        "control_ratio": controls / len(text),
+        "encoding_ratio": encoded / len(text),
+    }
 
-# Entropy calculation function
-
-def calculate_entropy(data):
-    # Calculate the entropy of the given data
-    value, counts = np.unique(data, return_counts=True)
-    return -np.sum((counts/len(data)) * np.log2(counts/len(data)))
-
-# Main threat detection function
 
 def detect_threats(data):
+    """Return an advisory one-element prediction list (-1 anomalous, 1 ordinary)."""
     features = extract_features(data)
-    model = IsolationForest()
-    model.fit(features)
-    predictions = model.predict(features)  # -1 for anomalies, 1 for normal
-    return predictions
+    anomalous = (
+        features["control_ratio"] > 0.01
+        or features["encoding_ratio"] > 0.15
+        or (features["length"] > 2000 and features["entropy"] > 5.5)
+    )
+    return [-1 if anomalous else 1]
 
-# Adaptive rules example
 
 def adaptive_rules(predictions):
-    if len(predictions[predictions == -1]) > 0:
-        print("Threat Detected!")
-    else:
-        print("No Threat Detected.")
-
-if __name__ == '__main__':
-    # Sample data
-    sample_data = np.random.rand(100)
-    predictions = detect_threats(sample_data)
-    adaptive_rules(predictions)
+    """Return whether the advisory detector reported an anomaly."""
+    return any(int(prediction) == -1 for prediction in predictions)
