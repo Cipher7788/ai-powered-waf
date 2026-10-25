@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 """Tests for the advisory anomaly feature extractor."""
 from ai_threat_detector import detect_threats, extract_features, adaptive_rules
 
