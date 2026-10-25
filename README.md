@@ -1,120 +1,105 @@
 # AI-Powered WAF
 
-## Overview
-The AI-Powered WAF is a web application firewall that uses Python/Flask and machine learning (Isolation Forest via scikit-learn) to detect and block common web threats such as SQL injection, XSS, path traversal, and command injection.
+A small Flask API demonstrating rule-based inspection for common web payload threats, bounded request rate limiting, and authenticated administration. This is a defensive demo, not a substitute for a production WAF, secure application design, or penetration testing.
 
-## Tech Stack
-- **Backend**: Python 3.9+ / Flask
-- **AI/ML**: scikit-learn (Isolation Forest), NumPy
-- **Configuration**: python-dotenv
-- **Logging**: Python standard library `logging`
+## Features
 
-## Architecture
-```
-┌──────────────┐       ┌──────────────────┐       ┌──────────────────────┐
-│  HTTP Client │──────▶│  Flask App (app.py)│──────▶│  WAFEngine           │
-└──────────────┘       │  - Rate limiting   │       │  - SQL Injection      │
-                       │  - Request logging │       │  - XSS               │
-                       └──────────────────┘       │  - Path Traversal    │
-                                │                  │  - Command Injection  │
-                                ▼                  └──────────────────────┘
-                       ┌──────────────────┐               │
-                       │  SecurityLogger  │               ▼
-                       └──────────────────┘  ┌──────────────────────────┐
-                                             │  AiThreatDetector        │
-                                             │  (Isolation Forest)      │
-                                             └──────────────────────────┘
-```
+- Detects common SQL injection, XSS, path traversal, and command-injection patterns in nested JSON values.
+- Performs bounded HTML/URL decoding before matching.
+- Enforces a request-body limit and per-process sliding-window rate limit.
+- Protects log retrieval and configuration updates with constant-time administrator-token comparison.
+- Validates configuration before applying it at runtime.
+- Rotates file logs and avoids recording request bodies.
+- Includes regression tests and a non-root Docker image.
 
-## Installation
+Important: pattern matching is heuristic. False positives and bypasses are possible. Test against your own traffic before enforcing it in production. The advisory anomaly feature is not a trained ML model and does not block traffic by itself.
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Cipher7788/ai-powered-waf.git
-   cd ai-powered-waf
-   ```
+## Requirements and local setup
 
-2. **Create and activate a virtual environment**:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate   # Windows: venv\Scripts\activate
-   ```
+Python 3.10+ is recommended.
 
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+~~~bash
+git clone https://github.com/Cipher7788/ai-powered-waf.git
+cd ai-powered-waf
+python -m venv .venv
+# Linux/macOS:
+source .venv/bin/activate
+# Windows PowerShell:
+# .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cp .env.sample .env
+~~~
 
-4. **Set up environment variables**:
-   ```bash
-   cp .env.sample .env
-   # Edit .env and set SECRET_KEY and other values
-   ```
+Set a long random WAF_ADMIN_TOKEN and SECRET_KEY in .env. Generate strong values locally with:
 
-## Running the Application
+~~~bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+~~~
 
-```bash
+Run the local development server:
+
+~~~bash
 python main.py
-```
+~~~
 
-The server starts on `http://0.0.0.0:5000` by default.
+It binds to 127.0.0.1:5000 for local development. Do not expose Flask's development server to the internet.
 
-## Running Tests
+## Tests
 
-```bash
-pytest tests/ -v
-```
+~~~bash
+pytest -q
+~~~
 
-## Docker Deployment
+## Docker
 
-> **Important**: Before deploying, set `SECRET_KEY` to a strong random value in your environment or shell. Never use the placeholder value in production.
+After setting SECRET_KEY and WAF_ADMIN_TOKEN in .env:
 
-```bash
-export SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+~~~bash
+docker compose up --build -d
+docker compose logs -f waf
+docker compose down
+~~~
 
-# Build and start
-docker-compose up --build
+The Compose configuration binds to loopback by default. Put a properly configured TLS reverse proxy in front if remote access is required.
 
-# Stop
-docker-compose down
-```
+## API
 
-## API Documentation
+| Method | Endpoint | Purpose | Access |
+|---|---|---|---|
+| GET | /waf/status | Health/status | Public |
+| POST | /waf/analyze | Inspect a JSON payload | Public |
+| GET | /waf/config | Read active settings | Public |
+| POST | /waf/config | Validate and apply settings | Admin token required |
+| GET | /waf/logs | Read latest log entries | Admin token required |
 
-Base URL: `http://localhost:5000`
+Administrative requests use either X-Admin-Token: <token> or Authorization: Bearer <token>. If WAF_ADMIN_TOKEN is not configured, administrative endpoints fail closed with HTTP 503.
 
-### Endpoints
+Analyze a sample payload:
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/waf/status` | Check WAF operational status |
-| `POST` | `/waf/analyze` | Analyze a JSON payload for threats |
-| `GET` | `/waf/logs` | Retrieve security log entries |
-| `GET` | `/waf/config` | Get current WAF configuration |
-| `POST` | `/waf/config` | Update WAF configuration |
+~~~bash
+curl -sS http://127.0.0.1:5000/waf/analyze \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"SELECT * FROM users"}'
+~~~
 
-### Example: Analyze a Request
+Update the rate limit (replace the placeholder with your actual token):
 
-```bash
-curl -X POST http://localhost:5000/waf/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"query": "SELECT * FROM users"}'
-```
+~~~bash
+curl -sS -X POST http://127.0.0.1:5000/waf/config \
+  -H 'Content-Type: application/json' \
+  -H 'X-Admin-Token: YOUR_ADMIN_TOKEN' \
+  -d '{"rate_limit_max_requests":200,"rate_limit_window_seconds":60}'
+~~~
 
-**Response**:
-```json
-{
-  "threat_detected": true,
-  "threats": ["sql_injection"],
-  "ai_predictions": [-1, 1, -1, ...]
-}
-```
+Supported configuration keys:
+- rate_limit_max_requests: integer from 1 to 100000.
+- rate_limit_window_seconds: integer from 1 to 86400.
+- enabled_rules: list containing any of sql_injection, xss, path_traversal, command_injection.
 
-### Rate Limiting
+## Operational limitations
 
-Requests are limited to **100 per 60-second window** per server instance. Exceeding this returns HTTP 429.
-
-## Project Details
-- **License**: MIT
-- **Contributors**: Cipher7788
-- **Version**: 1.0.0
+- The in-memory rate limiter is per process and does not coordinate across replicas. Use a shared limiter such as Redis for reliable distributed rate limiting.
+- Trust proxy headers only after explicitly configuring a trusted reverse proxy.
+- The log/config admin token should be long, unique, and delivered only over TLS when accessed remotely.
+- Security rules should be validated with a representative benign/malicious corpus; do not assume this project guarantees prevention of all attacks.
+- Runtime configuration is in memory and resets on restart.
