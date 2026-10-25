@@ -32,7 +32,7 @@ class WAFEngine:
         )
         self.command_injection_pattern = re.compile(
             r"(?:\$\(|\x60[^\x60]+\x60|(?:;|&&?|\|\|?|\n)\s*(?:bash|sh|zsh|curl|wget|nc|netcat|"
-            r"python\b|perl\b|ruby\b|php\b|powershell\b|cmd\.exe|chmod\b|rm\s+-|"
+            r"python\b|perl\b|ruby\b|php\b|powershell\b|cmd\.exe|chmod\b|rm\b|"
             r"grep\b|cat\b|ls\b|whoami\b|id\b)|>\s*/(?:dev|etc|tmp)/)",
             re.IGNORECASE,
         )
