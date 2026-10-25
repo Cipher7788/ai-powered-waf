@@ -13,4 +13,4 @@ COPY --chown=waf:waf . .
 USER waf
 
 EXPOSE 5000
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 30 app:app"]
+CMD ["sh", "-c", "waitress-serve --listen=0.0.0.0:$PORT --threads=4 app:app"]
