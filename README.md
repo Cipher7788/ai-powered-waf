@@ -98,7 +98,7 @@ Supported configuration keys:
 
 ## Operational limitations
 
-- The in-memory rate limiter is per process and does not coordinate across Gunicorn workers or replicas. Use a shared limiter such as Redis for reliable distributed rate limiting.
+- The in-memory rate limiter is per process and does not coordinate across replicas. Use a shared limiter such as Redis for reliable distributed rate limiting.
 - Trust proxy headers only after explicitly configuring a trusted reverse proxy.
 - The log/config admin token should be long, unique, and delivered only over TLS when accessed remotely.
 - Security rules should be validated with a representative benign/malicious corpus; do not assume this project guarantees prevention of all attacks.
