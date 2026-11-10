@@ -16,7 +16,7 @@ Important: pattern matching is heuristic. False positives and bypasses are possi
 
 ## Requirements and local setup
 
-Python 3.10+ is recommended.
+Python 3.10 or newer is required.
 
 ~~~bash
 git clone https://github.com/Cipher7788/ai-powered-waf.git
@@ -62,6 +62,8 @@ docker compose down
 
 The Compose configuration binds to loopback by default. Put a properly configured TLS reverse proxy in front if remote access is required.
 
+Compose uses a named volume for security logs. Fresh volumes inherit the log directory ownership from the image. Existing volumes retain their current ownership and must be writable by the container's `waf` user.
+
 ## API
 
 | Method | Endpoint | Purpose | Access |
@@ -73,6 +75,8 @@ The Compose configuration binds to loopback by default. Put a properly configure
 | GET | /waf/logs | Read latest log entries | Admin token required |
 
 Administrative requests use either X-Admin-Token: <token> or Authorization: Bearer <token>. If WAF_ADMIN_TOKEN is not configured, administrative endpoints fail closed with HTTP 503.
+
+JSON request bodies may be up to 1 MiB and contain up to 64 nested objects or arrays. Excessive nesting returns HTTP 400.
 
 Analyze a sample payload:
 
