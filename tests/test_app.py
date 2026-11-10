@@ -4,8 +4,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 """Integration tests for the Flask WAF API."""
 import json
+from unittest.mock import patch
 import pytest
-from app import app, rate_limiter
+from app import app, rate_limiter, security_logger
 
 
 @pytest.fixture
@@ -109,3 +110,20 @@ def test_request_body_limit(client):
         content_type="application/json",
     )
     assert response.status_code == 413
+
+@pytest.mark.parametrize("depth", [65, 2000])
+@pytest.mark.parametrize("path", ["/waf/analyze", "/waf/config"])
+def test_excessively_nested_json_returns_400(client, path, depth):
+    response = client.post(
+        path,
+        data='{"enabled_rules":' + "[" * depth + "0" + "]" * depth + "}",
+        content_type="application/json",
+        headers={"X-Admin-Token": "test-admin-token"},
+    )
+    assert response.status_code == 400
+
+
+def test_request_path_control_characters_are_escaped(client):
+    with patch.object(security_logger, "log") as log:
+        client.get("/probe%0Aforged")
+    assert any(r"\nforged" in call.args[0] for call in log.call_args_list)
