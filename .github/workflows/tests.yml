@@ -40,7 +40,7 @@ jobs:
         run: docker compose up --build -d
       - name: Check health, analysis, and persistent logs
         run: |
-          curl --fail --silent --show-error --retry 15 --retry-connrefused --retry-delay 2 \
+          curl --fail --silent --show-error --retry 15 --retry-all-errors --retry-delay 2 --max-time 3 \
             http://127.0.0.1:5000/waf/status
           curl --fail --silent --show-error http://127.0.0.1:5000/waf/analyze \
             -H 'Content-Type: application/json' \
