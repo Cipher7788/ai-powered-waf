@@ -10,6 +10,8 @@ __pycache__/
 venv/
 env/
 .env
+.env.*
+!.env.sample
 .venv/
 
 # Distribution / packaging
@@ -26,6 +28,8 @@ htmlcov/
 
 # Logs
 *.log
+*.log.*
+logs/
 
 # IDE
 .vscode/
@@ -36,6 +40,3 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
-
-# Docker
-.dockerignore

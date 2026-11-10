@@ -25,16 +25,20 @@ class RateLimiter:
         return float(value)
 
     def configure(self, max_requests=None, window_seconds=None):
+        if max_requests is not None:
+            max_requests = self._positive_int(max_requests, "max_requests")
+        if window_seconds is not None:
+            window_seconds = self._positive_number(window_seconds, "window_seconds")
         with self._lock:
             if max_requests is not None:
-                self.max_requests = self._positive_int(max_requests, "max_requests")
+                self.max_requests = max_requests
             if window_seconds is not None:
-                self.window_seconds = self._positive_number(window_seconds, "window_seconds")
+                self.window_seconds = window_seconds
 
     def is_allowed(self, client_id="default"):
-        now = time.monotonic()
         key = str(client_id or "unknown")[:256]
         with self._lock:
+            now = time.monotonic()
             for client, timestamps in list(self._clients.items()):
                 while timestamps and now - timestamps[0] >= self.window_seconds:
                     timestamps.popleft()

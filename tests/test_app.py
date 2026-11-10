@@ -4,8 +4,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 """Integration tests for the Flask WAF API."""
 import json
+from unittest.mock import patch
 import pytest
-from app import app, rate_limiter
+from app import app, rate_limiter, security_logger
 
 
 @pytest.fixture
@@ -66,6 +67,34 @@ def test_admin_endpoints_require_authentication(client):
     assert client.post("/waf/config", json={"rate_limit_max_requests": 200}).status_code == 401
 
 
+@pytest.mark.parametrize("headers", [
+    {"X-Admin-Token": "tést"},
+    {"Authorization": "Bearer tést"},
+])
+def test_non_ascii_invalid_admin_token_is_rejected(client, headers):
+    assert client.get("/waf/logs", headers=headers).status_code == 401
+
+
+@pytest.mark.parametrize("token", [None, "", "   ", "replace-with-a-long-random-admin-token"])
+def test_unconfigured_admin_token_disables_admin_endpoints(client, monkeypatch, token):
+    if token is None:
+        monkeypatch.delenv("WAF_ADMIN_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("WAF_ADMIN_TOKEN", token)
+
+    headers = {"X-Admin-Token": token or "test-admin-token"}
+    assert client.get("/waf/logs", headers=headers).status_code == 503
+    assert client.post("/waf/config", json={"enabled_rules": []}, headers=headers).status_code == 503
+
+
+@pytest.mark.parametrize("headers", [
+    {"X-Admin-Token": "test-admin-token"},
+    {"Authorization": "Bearer test-admin-token"},
+])
+def test_valid_admin_token_allows_log_access(client, headers):
+    assert client.get("/waf/logs", headers=headers).status_code == 200
+
+
 def test_config_updates_are_applied(client):
     response = post_json(
         client, "/waf/config",
@@ -101,3 +130,20 @@ def test_request_body_limit(client):
         content_type="application/json",
     )
     assert response.status_code == 413
+
+@pytest.mark.parametrize("depth", [65, 2000])
+@pytest.mark.parametrize("path", ["/waf/analyze", "/waf/config"])
+def test_excessively_nested_json_returns_400(client, path, depth):
+    response = client.post(
+        path,
+        data='{"enabled_rules":' + "[" * depth + "0" + "]" * depth + "}",
+        content_type="application/json",
+        headers={"X-Admin-Token": "test-admin-token"},
+    )
+    assert response.status_code == 400
+
+
+def test_request_path_control_characters_are_escaped(client):
+    with patch.object(security_logger, "log") as log:
+        client.get("/probe%0Aforged")
+    assert any(r"\nforged" in call.args[0] for call in log.call_args_list)

@@ -1,7 +1,8 @@
-FROM python:3.12-slim
+FROM python:3.14-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PORT=5000
 
 WORKDIR /app
 
@@ -10,7 +11,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --chown=waf:waf . .
+RUN install -d -o waf -g waf /app/logs
 USER waf
 
 EXPOSE 5000
-CMD ["sh", "-c", "waitress-serve --listen=0.0.0.0:$PORT --threads=4 app:app"]
+CMD ["sh", "-c", "exec waitress-serve --listen=0.0.0.0:\"$PORT\" --threads=4 --max-request-body-size=2097152 app:app"]

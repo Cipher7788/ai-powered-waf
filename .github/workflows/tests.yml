@@ -11,14 +11,28 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        runner: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - runner: windows-latest
+            python-version: "3.10"
+          - runner: windows-latest
+            python-version: "3.14"
+          - runner: macos-latest
+            python-version: "3.10"
+          - runner: macos-latest
+            python-version: "3.14"
+          - runner: macos-15-intel
+            python-version: "3.14"
+          - runner: ubuntu-24.04-arm
+            python-version: "3.14"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -28,3 +42,34 @@ jobs:
         run: python -m compileall -q app.py main.py waf_engine.py rate_limiter.py security_logger.py ai_threat_detector.py
       - name: Run tests
         run: pytest -q
+
+  docker:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    env:
+      SECRET_KEY: ci-smoke-test-secret
+      WAF_ADMIN_TOKEN: ci-smoke-test-admin-token
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Build and start Compose service
+        run: docker compose up --build -d
+      - name: Check health, analysis, and persistent logs
+        run: |
+          curl --fail --silent --show-error --retry 15 --retry-all-errors --retry-delay 2 --max-time 3 \
+            http://127.0.0.1:5000/waf/status
+          curl --fail --silent --show-error http://127.0.0.1:5000/waf/analyze \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"SELECT * FROM users"}' \
+            | python3 -c 'import json, sys; assert "sql_injection" in json.load(sys.stdin)["threats"]'
+          curl --fail --silent --show-error http://127.0.0.1:5000/waf/logs \
+            -H "X-Admin-Token: $WAF_ADMIN_TOKEN" \
+            | python3 -c 'import json, sys; assert any("Analysis complete" in line for line in json.load(sys.stdin)["logs"])'
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Stop service
+        if: always()
+        run: docker compose down --volumes

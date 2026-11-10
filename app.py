@@ -1,8 +1,11 @@
 """Flask API for the AI-powered WAF."""
+from collections import deque
 import hmac
 import os
+from threading import Lock
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
+from waitress import serve
 from waf_engine import WAFEngine
 from rate_limiter import RateLimiter
 from security_logger import SecurityLogger
@@ -27,21 +30,38 @@ rate_limiter = RateLimiter(
     window_seconds=app.config["WAF_SETTINGS"]["rate_limit_window_seconds"],
 )
 security_logger = SecurityLogger()
+settings_lock = Lock()
+MAX_JSON_DEPTH = 64
 
 
-def _admin_authorized():
+def _read_json():
+    try:
+        data = request.get_json(silent=True)
+    except RecursionError:
+        return None
+
+    pending = [(data, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if isinstance(value, (dict, list)):
+            if depth >= MAX_JSON_DEPTH:
+                return None
+            children = value.values() if isinstance(value, dict) else value
+            pending.extend((child, depth + 1) for child in children)
+    return data
+
+
+def _admin_required():
     expected = os.getenv("WAF_ADMIN_TOKEN", "")
+    if not expected.strip() or expected == "replace-with-a-long-random-admin-token":
+        return jsonify({"error": "Admin access is not configured"}), 503
+
     supplied = request.headers.get("X-Admin-Token", "")
     authorization = request.headers.get("Authorization", "")
     if authorization.lower().startswith("bearer "):
         supplied = authorization[7:].strip()
-    return bool(expected) and bool(supplied) and hmac.compare_digest(expected, supplied)
 
-
-def _admin_required():
-    if not os.getenv("WAF_ADMIN_TOKEN"):
-        return jsonify({"error": "Admin access is not configured"}), 503
-    if not _admin_authorized():
+    if not hmac.compare_digest(expected.encode("utf-8"), supplied.encode("utf-8")):
         return jsonify({"error": "Admin authentication required"}), 401
     return None
 
@@ -56,7 +76,7 @@ def apply_rate_limiting():
 
 @app.before_request
 def log_request_metadata():
-    security_logger.log(f"Incoming {request.method} request from {request.remote_addr or 'unknown'} to {request.path}")
+    security_logger.log(f"Incoming {request.method} request from {request.remote_addr or 'unknown'} to {request.path!a}")
 
 
 @app.errorhandler(413)
@@ -73,7 +93,7 @@ def waf_status():
 def waf_analyze():
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json"}), 400
-    data = request.get_json(silent=True)
+    data = _read_json()
     if data is None or not isinstance(data, (dict, list, str, int, float, bool)):
         return jsonify({"error": "Invalid JSON payload"}), 400
 
@@ -107,7 +127,7 @@ def waf_logs():
         if not os.path.exists(log_file):
             return jsonify({"logs": []}), 200
         with open(log_file, "r", encoding="utf-8", errors="replace") as handle:
-            logs = handle.readlines()[-500:]
+            logs = list(deque(handle, maxlen=500))
         return jsonify({"logs": logs}), 200
     except OSError:
         return jsonify({"error": "Security logs are unavailable"}), 500
@@ -123,7 +143,7 @@ def waf_config():
         return auth_error
     if not request.is_json:
         return jsonify({"error": "Content-Type must be application/json"}), 400
-    new_config = request.get_json(silent=True)
+    new_config = _read_json()
     if not isinstance(new_config, dict) or not new_config:
         return jsonify({"error": "Configuration must be a non-empty JSON object"}), 400
 
@@ -132,6 +152,11 @@ def waf_config():
     if unknown:
         return jsonify({"error": "Unknown configuration keys", "keys": sorted(unknown)}), 400
 
+    with settings_lock:
+        return _apply_config(new_config)
+
+
+def _apply_config(new_config):
     updated = dict(app.config["WAF_SETTINGS"])
     if "rate_limit_max_requests" in new_config:
         value = new_config["rate_limit_max_requests"]
@@ -162,7 +187,13 @@ def waf_config():
     return jsonify({"message": "Config updated", "config": updated}), 200
 
 
-if __name__ == "__main__":
-    debug = os.getenv("FLASK_DEBUG", "False").lower() in ("1", "true")
+def run_local(application):
     port = int(os.getenv("PORT", "5000"))
-    app.run(debug=debug, host="127.0.0.1", port=port)
+    if os.getenv("FLASK_DEBUG", "False").lower() in ("1", "true"):
+        application.run(debug=True, host="127.0.0.1", port=port)
+    else:
+        serve(application, host="127.0.0.1", port=port, max_request_body_size=2 * 1024 * 1024)
+
+
+if __name__ == "__main__":
+    run_local(app)

@@ -14,45 +14,59 @@ A small Flask API demonstrating rule-based inspection for common web payload thr
 
 Important: pattern matching is heuristic. False positives and bypasses are possible. Test against your own traffic before enforcing it in production. The advisory anomaly feature is not a trained ML model and does not block traffic by itself.
 
-## Requirements and local setup
+## Local setup
 
-Python 3.10+ is recommended.
+Install Git and Python 3.10 or newer. Run these commands from a terminal.
 
-~~~bash
+```text
 git clone https://github.com/Cipher7788/ai-powered-waf.git
 cd ai-powered-waf
-python -m venv .venv
-# Linux/macOS:
-source .venv/bin/activate
-# Windows PowerShell:
-# .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-cp .env.sample .env
-~~~
+```
 
-Set a long random WAF_ADMIN_TOKEN and SECRET_KEY in .env. Generate strong values locally with:
+### Windows PowerShell
 
-~~~bash
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-~~~
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
-Run the local development server:
+If Python is available as `python` instead of `py`, use `python -m venv .venv`. The commands call the virtual environment's Python directly and work without changing PowerShell's script execution policy.
 
-~~~bash
-python main.py
-~~~
+### macOS and Linux
 
-It binds to 127.0.0.1:5000 for local development. Do not expose Flask's development server to the internet.
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
 
-## Tests
+If your Linux distribution packages virtual environment support separately, install its Python venv package first.
 
-~~~bash
-pytest -q
-~~~
+### Configure and start
+
+Run the setup command to create `.env` and generate local secrets. It preserves existing values and fills in blank, missing, or sample secrets.
+
+```powershell
+.\.venv\Scripts\python.exe setup_env.py
+```
+
+```bash
+.venv/bin/python setup_env.py
+```
+
+If admin requests return HTTP 503, run setup and restart the server. An exported `WAF_ADMIN_TOKEN` takes precedence over the value in `.env`.
+
+| Task | Windows PowerShell | macOS and Linux |
+|---|---|---|
+| Start locally | `.\.venv\Scripts\python.exe main.py` | `.venv/bin/python main.py` |
+| Run the test suite | `.\.venv\Scripts\python.exe -m pytest -q` | `.venv/bin/python -m pytest -q` |
+
+The local server uses Waitress and listens at `http://127.0.0.1:5000` by default. Open `http://127.0.0.1:5000/waf/status` in your browser to verify startup. Stop the server with Ctrl+C. If port 5000 is occupied, set `PORT=5001` in `.env` and use that port in the URL. Set `FLASK_DEBUG=True` only when you need Flask’s development debugger on your own machine.
+
+The sample configuration is included in the repository. Security logs are generated at runtime. The anomaly score uses built-in heuristics and setup requires no external dataset or model weights.
 
 ## Docker
 
-After setting SECRET_KEY and WAF_ADMIN_TOKEN in .env:
+The image uses Python 3.14 on Debian Trixie. Use Docker Engine with Compose on Linux or Docker Desktop in Linux container mode on Windows and macOS. Set `SECRET_KEY` and `WAF_ADMIN_TOKEN` in `.env` before starting the service:
 
 ~~~bash
 docker compose up --build -d
@@ -61,6 +75,8 @@ docker compose down
 ~~~
 
 The Compose configuration binds to loopback by default. Put a properly configured TLS reverse proxy in front if remote access is required.
+
+Compose uses a named volume for security logs. Fresh volumes inherit the log directory ownership from the image. Existing volumes retain their current ownership and must be writable by the container's `waf` user.
 
 ## API
 
@@ -72,15 +88,23 @@ The Compose configuration binds to loopback by default. Put a properly configure
 | POST | /waf/config | Validate and apply settings | Admin token required |
 | GET | /waf/logs | Read latest log entries | Admin token required |
 
-Administrative requests use either X-Admin-Token: <token> or Authorization: Bearer <token>. If WAF_ADMIN_TOKEN is not configured, administrative endpoints fail closed with HTTP 503.
+Administrative requests use either X-Admin-Token: <token> or Authorization: Bearer <token>. Administrative endpoints return HTTP 503 when WAF_ADMIN_TOKEN is unset, blank, or still set to the sample placeholder.
 
-Analyze a sample payload:
+JSON request bodies may be up to 1 MiB and contain up to 64 nested objects or arrays. Excessive nesting returns HTTP 400.
+
+Analyze a sample payload in a POSIX shell:
 
 ~~~bash
 curl -sS http://127.0.0.1:5000/waf/analyze \
   -H 'Content-Type: application/json' \
   -d '{"query":"SELECT * FROM users"}'
 ~~~
+
+In Windows PowerShell, send the same request with:
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:5000/waf/analyze -Method Post -ContentType application/json -Body '{"query":"SELECT * FROM users"}'
+```
 
 Update the rate limit (replace the placeholder with your actual token):
 
