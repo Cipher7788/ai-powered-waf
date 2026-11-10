@@ -5,6 +5,7 @@ import os
 from threading import Lock
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
+from waitress import serve
 from waf_engine import WAFEngine
 from rate_limiter import RateLimiter
 from security_logger import SecurityLogger
@@ -188,7 +189,13 @@ def _apply_config(new_config):
     return jsonify({"message": "Config updated", "config": updated}), 200
 
 
-if __name__ == "__main__":
-    debug = os.getenv("FLASK_DEBUG", "False").lower() in ("1", "true")
+def run_local(application):
     port = int(os.getenv("PORT", "5000"))
-    app.run(debug=debug, host="127.0.0.1", port=port)
+    if os.getenv("FLASK_DEBUG", "False").lower() in ("1", "true"):
+        application.run(debug=True, host="127.0.0.1", port=port)
+    else:
+        serve(application, host="127.0.0.1", port=port, max_request_body_size=2 * 1024 * 1024)
+
+
+if __name__ == "__main__":
+    run_local(app)
