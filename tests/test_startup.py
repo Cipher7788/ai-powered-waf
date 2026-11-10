@@ -11,6 +11,8 @@ import time
 from urllib.error import URLError
 from urllib.request import ProxyHandler, Request, build_opener
 
+from dotenv import dotenv_values
+
 
 def test_fresh_checkout_starts_and_writes_logs(tmp_path):
     source = Path(__file__).resolve().parents[1]
@@ -18,13 +20,20 @@ def test_fresh_checkout_starts_and_writes_logs(tmp_path):
     checkout.mkdir()
     for path in source.glob("*.py"):
         copy2(path, checkout / path.name)
-    sample = (source / ".env.sample").read_text(encoding="utf-8")
+    sample_path = checkout / ".env.sample"
+    copy2(source / ".env.sample", sample_path)
+    sample = sample_path.read_text(encoding="utf-8")
     (checkout / ".env").write_text(
-        sample.replace("replace-with-a-long-random-secret", "test-secret")
-        .replace("replace-with-a-long-random-admin-token", "test-admin-token")
-        .replace("LOG_FILE=security.log", "LOG_FILE=logs/security.log"),
+        sample.replace("LOG_FILE=security.log", "LOG_FILE=logs/security.log"),
         encoding="utf-8-sig",
     )
+
+    subprocess.run([sys.executable, "setup_env.py"], cwd=checkout, check=True)
+    configured = dotenv_values(checkout / ".env", encoding="utf-8-sig")
+    admin_token = configured["WAF_ADMIN_TOKEN"]
+    assert admin_token and admin_token != "replace-with-a-long-random-admin-token"
+    subprocess.run([sys.executable, "setup_env.py"], cwd=checkout, check=True)
+    assert dotenv_values(checkout / ".env", encoding="utf-8-sig") == configured
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.bind(("127.0.0.1", 0))
@@ -58,7 +67,7 @@ def test_fresh_checkout_starts_and_writes_logs(tmp_path):
             else:
                 raise AssertionError(output.read_text(encoding="utf-8", errors="replace"))
 
-            request = Request(f"{base_url}/logs", headers={"X-Admin-Token": "test-admin-token"})
+            request = Request(f"{base_url}/logs", headers={"X-Admin-Token": admin_token})
             with http.open(request, timeout=3) as response:
                 assert any("/waf/status" in line for line in json.load(response)["logs"])
             assert (checkout / "logs" / "security.log").is_file()
