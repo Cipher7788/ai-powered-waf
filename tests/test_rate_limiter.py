@@ -44,3 +44,10 @@ class TestRateLimiter:
         assert limiter.is_allowed('10.0.0.1') is False
         # Different client should still be allowed
         assert limiter.is_allowed('10.0.0.2') is True
+
+    def test_failed_configure_leaves_limits_unchanged(self):
+        limiter = RateLimiter(max_requests=2, window_seconds=60)
+        with pytest.raises(ValueError):
+            limiter.configure(max_requests=3, window_seconds=0)
+        assert limiter.max_requests == 2
+        assert limiter.window_seconds == 60
