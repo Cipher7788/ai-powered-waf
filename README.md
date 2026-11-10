@@ -14,45 +14,51 @@ A small Flask API demonstrating rule-based inspection for common web payload thr
 
 Important: pattern matching is heuristic. False positives and bypasses are possible. Test against your own traffic before enforcing it in production. The advisory anomaly feature is not a trained ML model and does not block traffic by itself.
 
-## Requirements and local setup
+## Local setup
 
-Python 3.10 or newer is required.
+Install Git and Python 3.10 or newer. Run these commands from a terminal.
 
-~~~bash
+```text
 git clone https://github.com/Cipher7788/ai-powered-waf.git
 cd ai-powered-waf
-python -m venv .venv
-# Linux/macOS:
-source .venv/bin/activate
-# Windows PowerShell:
-# .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+```
+
+### Windows PowerShell
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.sample .env
+```
+
+If Python is available as `python` instead of `py`, use `python -m venv .venv`. The commands call the virtual environment's Python directly and work without changing PowerShell's script execution policy.
+
+### macOS and Linux
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 cp .env.sample .env
-~~~
+```
 
-Set a long random WAF_ADMIN_TOKEN and SECRET_KEY in .env. Generate strong values locally with:
+If your Linux distribution packages virtual environment support separately, install its Python venv package first.
 
-~~~bash
-python -c "import secrets; print(secrets.token_urlsafe(48))"
-~~~
+### Configure and start
 
-Run the local development server:
+Edit `.env` and set distinct random values for `WAF_ADMIN_TOKEN` and `SECRET_KEY`. To generate each value, run `-c "import secrets; print(secrets.token_urlsafe(48))"` with the virtual environment's Python.
 
-~~~bash
-python main.py
-~~~
+| Task | Windows PowerShell | macOS and Linux |
+|---|---|---|
+| Start locally | `.\.venv\Scripts\python.exe main.py` | `.venv/bin/python main.py` |
+| Run the test suite | `.\.venv\Scripts\python.exe -m pytest -q` | `.venv/bin/python -m pytest -q` |
 
-It binds to 127.0.0.1:5000 for local development. Do not expose Flask's development server to the internet.
+The development server listens at `http://127.0.0.1:5000` by default. Open `http://127.0.0.1:5000/waf/status` in your browser to verify startup. Stop the server with Ctrl+C. The development server is intended for local use.
 
-## Tests
-
-~~~bash
-pytest -q
-~~~
+The sample configuration is included in the repository. Security logs are generated at runtime. The anomaly score uses built-in heuristics and setup requires no external dataset or model weights.
 
 ## Docker
 
-After setting SECRET_KEY and WAF_ADMIN_TOKEN in .env:
+Use Docker Engine with Compose on Linux or Docker Desktop in Linux container mode on Windows and macOS. Set `SECRET_KEY` and `WAF_ADMIN_TOKEN` in `.env` before starting the service:
 
 ~~~bash
 docker compose up --build -d
@@ -78,13 +84,19 @@ Administrative requests use either X-Admin-Token: <token> or Authorization: Bear
 
 JSON request bodies may be up to 1 MiB and contain up to 64 nested objects or arrays. Excessive nesting returns HTTP 400.
 
-Analyze a sample payload:
+Analyze a sample payload in a POSIX shell:
 
 ~~~bash
 curl -sS http://127.0.0.1:5000/waf/analyze \
   -H 'Content-Type: application/json' \
   -d '{"query":"SELECT * FROM users"}'
 ~~~
+
+In Windows PowerShell, send the same request with:
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:5000/waf/analyze -Method Post -ContentType application/json -Body '{"query":"SELECT * FROM users"}'
+```
 
 Update the rate limit (replace the placeholder with your actual token):
 
