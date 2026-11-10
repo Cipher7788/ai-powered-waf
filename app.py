@@ -35,7 +35,7 @@ def _admin_authorized():
     authorization = request.headers.get("Authorization", "")
     if authorization.lower().startswith("bearer "):
         supplied = authorization[7:].strip()
-    return bool(expected) and bool(supplied) and hmac.compare_digest(expected, supplied)
+    return bool(expected) and bool(supplied) and hmac.compare_digest(expected.encode("utf-8"), supplied.encode("utf-8"))
 
 
 def _admin_required():
