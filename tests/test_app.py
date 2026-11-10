@@ -75,6 +75,26 @@ def test_non_ascii_invalid_admin_token_is_rejected(client, headers):
     assert client.get("/waf/logs", headers=headers).status_code == 401
 
 
+@pytest.mark.parametrize("token", [None, "", "   ", "replace-with-a-long-random-admin-token"])
+def test_unconfigured_admin_token_disables_admin_endpoints(client, monkeypatch, token):
+    if token is None:
+        monkeypatch.delenv("WAF_ADMIN_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("WAF_ADMIN_TOKEN", token)
+
+    headers = {"X-Admin-Token": token or "test-admin-token"}
+    assert client.get("/waf/logs", headers=headers).status_code == 503
+    assert client.post("/waf/config", json={"enabled_rules": []}, headers=headers).status_code == 503
+
+
+@pytest.mark.parametrize("headers", [
+    {"X-Admin-Token": "test-admin-token"},
+    {"Authorization": "Bearer test-admin-token"},
+])
+def test_valid_admin_token_allows_log_access(client, headers):
+    assert client.get("/waf/logs", headers=headers).status_code == 200
+
+
 def test_config_updates_are_applied(client):
     response = post_json(
         client, "/waf/config",
