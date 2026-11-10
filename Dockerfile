@@ -15,4 +15,4 @@ RUN install -d -o waf -g waf /app/logs
 USER waf
 
 EXPOSE 5000
-CMD ["sh", "-c", "exec waitress-serve --listen=0.0.0.0:\"$PORT\" --threads=4 app:app"]
+CMD ["sh", "-c", "exec waitress-serve --listen=0.0.0.0:\"$PORT\" --threads=4 --max-request-body-size=2097152 app:app"]
