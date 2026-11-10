@@ -1,4 +1,4 @@
-"""Local development entry point. Production uses Gunicorn (app:app)."""
+"""Local development entry point. The container uses Waitress (app:app)."""
 import os
 from dotenv import load_dotenv
 from app import app
