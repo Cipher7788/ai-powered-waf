@@ -66,6 +66,14 @@ def test_admin_endpoints_require_authentication(client):
     assert client.post("/waf/config", json={"rate_limit_max_requests": 200}).status_code == 401
 
 
+@pytest.mark.parametrize("headers", [
+    {"X-Admin-Token": "tést"},
+    {"Authorization": "Bearer tést"},
+])
+def test_non_ascii_invalid_admin_token_is_rejected(client, headers):
+    assert client.get("/waf/logs", headers=headers).status_code == 401
+
+
 def test_config_updates_are_applied(client):
     response = post_json(
         client, "/waf/config",
