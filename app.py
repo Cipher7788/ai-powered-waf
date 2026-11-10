@@ -51,19 +51,17 @@ def _read_json():
     return data
 
 
-def _admin_authorized():
+def _admin_required():
     expected = os.getenv("WAF_ADMIN_TOKEN", "")
+    if not expected.strip() or expected == "replace-with-a-long-random-admin-token":
+        return jsonify({"error": "Admin access is not configured"}), 503
+
     supplied = request.headers.get("X-Admin-Token", "")
     authorization = request.headers.get("Authorization", "")
     if authorization.lower().startswith("bearer "):
         supplied = authorization[7:].strip()
-    return bool(expected) and bool(supplied) and hmac.compare_digest(expected.encode("utf-8"), supplied.encode("utf-8"))
 
-
-def _admin_required():
-    if not os.getenv("WAF_ADMIN_TOKEN"):
-        return jsonify({"error": "Admin access is not configured"}), 503
-    if not _admin_authorized():
+    if not hmac.compare_digest(expected.encode("utf-8"), supplied.encode("utf-8")):
         return jsonify({"error": "Admin authentication required"}), 401
     return None
 
