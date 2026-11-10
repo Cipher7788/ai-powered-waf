@@ -52,7 +52,7 @@ Edit `.env` and set distinct random values for `WAF_ADMIN_TOKEN` and `SECRET_KEY
 | Start locally | `.\.venv\Scripts\python.exe main.py` | `.venv/bin/python main.py` |
 | Run the test suite | `.\.venv\Scripts\python.exe -m pytest -q` | `.venv/bin/python -m pytest -q` |
 
-The development server listens at `http://127.0.0.1:5000` by default. Open `http://127.0.0.1:5000/waf/status` in your browser to verify startup. Stop the server with Ctrl+C. The development server is intended for local use.
+The local server uses Waitress and listens at `http://127.0.0.1:5000` by default. Open `http://127.0.0.1:5000/waf/status` in your browser to verify startup. Stop the server with Ctrl+C. If port 5000 is occupied, set `PORT=5001` in `.env` and use that port in the URL. Set `FLASK_DEBUG=True` only when you need Flask’s development debugger on your own machine.
 
 The sample configuration is included in the repository. Security logs are generated at runtime. The anomaly score uses built-in heuristics and setup requires no external dataset or model weights.
 
