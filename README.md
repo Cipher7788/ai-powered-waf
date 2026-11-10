@@ -28,7 +28,6 @@ cd ai-powered-waf
 ```powershell
 py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.sample .env
 ```
 
 If Python is available as `python` instead of `py`, use `python -m venv .venv`. The commands call the virtual environment's Python directly and work without changing PowerShell's script execution policy.
@@ -38,14 +37,23 @@ If Python is available as `python` instead of `py`, use `python -m venv .venv`. 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-cp .env.sample .env
 ```
 
 If your Linux distribution packages virtual environment support separately, install its Python venv package first.
 
 ### Configure and start
 
-Edit `.env` and set distinct random values for `WAF_ADMIN_TOKEN` and `SECRET_KEY`. To generate each value, run `-c "import secrets; print(secrets.token_urlsafe(48))"` with the virtual environment's Python.
+Run the setup command to create `.env` and generate local secrets. It preserves existing values and fills in blank, missing, or sample secrets.
+
+```powershell
+.\.venv\Scripts\python.exe setup_env.py
+```
+
+```bash
+.venv/bin/python setup_env.py
+```
+
+If admin requests return HTTP 503, run setup and restart the server. An exported `WAF_ADMIN_TOKEN` takes precedence over the value in `.env`.
 
 | Task | Windows PowerShell | macOS and Linux |
 |---|---|---|
