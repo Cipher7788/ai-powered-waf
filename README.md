@@ -58,7 +58,7 @@ The sample configuration is included in the repository. Security logs are genera
 
 ## Docker
 
-Use Docker Engine with Compose on Linux or Docker Desktop in Linux container mode on Windows and macOS. Set `SECRET_KEY` and `WAF_ADMIN_TOKEN` in `.env` before starting the service:
+The image uses Python 3.14 on Debian Trixie. Use Docker Engine with Compose on Linux or Docker Desktop in Linux container mode on Windows and macOS. Set `SECRET_KEY` and `WAF_ADMIN_TOKEN` in `.env` before starting the service:
 
 ~~~bash
 docker compose up --build -d
@@ -80,7 +80,7 @@ Compose uses a named volume for security logs. Fresh volumes inherit the log dir
 | POST | /waf/config | Validate and apply settings | Admin token required |
 | GET | /waf/logs | Read latest log entries | Admin token required |
 
-Administrative requests use either X-Admin-Token: <token> or Authorization: Bearer <token>. If WAF_ADMIN_TOKEN is not configured, administrative endpoints fail closed with HTTP 503.
+Administrative requests use either X-Admin-Token: <token> or Authorization: Bearer <token>. Administrative endpoints return HTTP 503 when WAF_ADMIN_TOKEN is unset, blank, or still set to the sample placeholder.
 
 JSON request bodies may be up to 1 MiB and contain up to 64 nested objects or arrays. Excessive nesting returns HTTP 400.
 
